@@ -46,13 +46,13 @@ namespace dotAPNS
 #if NET46
         readonly CngKey _key;
 #else
-        readonly ECDsa _key;
+        readonly ECDsa? _key;
 #endif
 
-        readonly string _keyId;
-        readonly string _teamId;
+        readonly string? _keyId;
+        readonly string? _teamId;
 
-        string _jwt;
+        string? _jwt;
         DateTime _lastJwtGenerationTime;
         readonly object _jwtRefreshLock = new object();
 
@@ -138,6 +138,8 @@ namespace dotAPNS
             req.Headers.Add("apns-priority", push.Priority.ToString());
             req.Headers.Add("apns-push-type", push.Type.ToString().ToLowerInvariant());
             req.Headers.Add("apns-topic", GetTopic(push.Type));
+            if (!string.IsNullOrWhiteSpace(push.Id))
+                req.Headers.Add("apns-id", push.Id);
             if (!_useCert)
                 req.Headers.Authorization = new AuthenticationHeaderValue("bearer", GetOrGenerateJwt());
             if (push.Expiration.HasValue)
@@ -166,22 +168,22 @@ namespace dotAPNS
                 throw new ApnsCertificateExpiredException(innerException: ex);
             }
 
-            var respContent = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             // Process status codes specified by APNs documentation
             // https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/handling_notification_responses_from_apns
             var statusCode = (int)resp.StatusCode;
 
             // Push has been successfully sent. This is the only code indicating a success as per documentation.
-            if (statusCode == 200)
-                return ApnsResponse.Successful();
+            var apnsId = resp.Headers.TryGetValues("apns-id", out var values) ? values?.FirstOrDefault() : null;
+			if (statusCode == 200)
+                return ApnsResponse.Successful(apnsId);
 
-            // something went wrong
-            // check for payload 
-            // {"reason":"DeviceTokenNotForTopic"}
-            // {"reason":"Unregistered","timestamp":1454948015990}
-
-            ApnsErrorResponsePayload errorPayload;
+			// something went wrong
+			// check for payload 
+			// {"reason":"DeviceTokenNotForTopic"}
+			// {"reason":"Unregistered","timestamp":1454948015990}
+			var respContent = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+			ApnsErrorResponsePayload? errorPayload;
             try
             {
                 errorPayload = JsonConvert.DeserializeObject<ApnsErrorResponsePayload>(respContent);
@@ -189,11 +191,11 @@ namespace dotAPNS
             catch (JsonException ex)
             {
                 return ApnsResponse.Error(ApnsResponseReason.Unknown, 
-                    $"Status: {statusCode}, reason: {respContent ?? "not specified"}.");
+                    $"Status: {statusCode}, reason: {respContent ?? "not specified"}.", apnsId);
             }
 
             Debug.Assert(errorPayload != null);
-            return ApnsResponse.Error(errorPayload.Reason, errorPayload.ReasonRaw);
+            return ApnsResponse.Error(errorPayload.Reason, errorPayload.ReasonRaw, apnsId);
         }
 
         public static ApnsClient CreateUsingJwt([NotNull] HttpClient http, [NotNull] ApnsJwtOptions options)

@@ -1,12 +1,15 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
-using JetBrains.Annotations;
 
 namespace dotAPNS.AspNetCore
 {
-    public interface IApnsClientFactory
+#if NET6_0_OR_GREATER
+	using System.Diagnostics.CodeAnalysis;
+#else
+    using JetBrains.Annotations;
+#endif
+	public interface IApnsClientFactory
     {
         IApnsClient CreateUsingCert([NotNull] X509Certificate2 cert, bool useSandbox = false, bool disableServerCertValidation = false);
         IApnsClient CreateUsingCert([NotNull] string pathToCert, bool useSandbox = false, bool disableServerCertValidation = false);

@@ -10,6 +10,7 @@ namespace dotAPNS
 {
     public class ApplePush
     {
+        public string? Id { get; set; }
         public string Token { get; private set; }
         public string VoipToken { get; private set; }
 
@@ -204,6 +205,14 @@ namespace dotAPNS
             if (priority < 0 || priority > 10)
                 throw new ArgumentOutOfRangeException(nameof(priority), priority, "Priority must be between 0 and 10.");
             CustomPriority = priority;
+            return this;
+        }
+
+        public ApplePush SetId(string? id)
+        {
+            if (!Guid.TryParse(id, out _))
+                throw new ArgumentOutOfRangeException(nameof(id));
+            Id = id;
             return this;
         }
 
